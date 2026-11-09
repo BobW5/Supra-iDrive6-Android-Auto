@@ -25,6 +25,7 @@ TEXTS = {1: "Android Auto", 2: "Android Auto: Connecting...",   # 2 = entry text
          24: "Android Auto over USB (beta)",   # 24 = USB checkbox on the Settings page (rhmiapp-40)
          25: "Use Phone GPS",   # 25 = phone GPS checkbox on the Settings page (rhmiapp-44)
          26: "Use WiFi Direct Network",   # 26 = Wi-Fi Direct only checkbox on the Settings page (rhmiapp-44)
+         27: "Update from USB",   # 27 = update row in the menu (rhmiapp-45)
          17: ABOUT}
 # Per-language overrides (ASCII only, like the language names above).
 LANG_TEXTS = {

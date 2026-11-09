@@ -22,6 +22,7 @@
       <raAction id="83"/>
       <raAction id="87"/>
       <raAction id="91"/>
+      <raAction id="95"/>
     </actions>
     <models>
       <textIdModel id="3" textId="1">
@@ -97,6 +98,7 @@
           <button action="21" id="61" model="31" text="Start Android Auto"/>
           <button action="22" id="62" model="32" text="Force Stop"/>
           <button action="23" id="63" model="33" text="Restart"/>
+          <button action="95" id="97" text="Update from USB"/>
           <separator id="66"/>
           <button action="80" id="81" model="82" text="Settings"/>
           <button action="25" id="65" model="36" text="About"/>

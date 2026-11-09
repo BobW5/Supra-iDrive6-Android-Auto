@@ -343,6 +343,15 @@ const unsigned    kActWfdOnly      = 91;
 const unsigned    kWfdOnlyModel    = 92;
 const char* const kWfdOnlyFlag     = "/var/opt/aa/wifi-direct";
 const char* const kWfdOnlyManual   = "/opt/aa/wifi-direct";
+// "Update from USB" row (raAction 95, hmiState 10): the daemon and plugin release on a mounted flash drive. It
+// starts /opt/aa/update_aa --no-reboot in the background; the tool writes each step to
+// /dev/shmem/update-aa-status and /opt/aa/update-aa.log, so progress can be read after the reboot the driver
+// performs by hand (the row label is static - a live status would need a text-DB entry). Rollback: the tool's
+// .old copies, then reboot.
+const unsigned    kActUpdate       = 95;
+const char* const kUpdateTool      = "/opt/aa/update_aa";
+const char* const kUpdateStatus    = "/dev/shmem/update-aa-status";
+const char* const kUpdateLog       = "/opt/aa/update-aa.log";
 const char* const kGctxProperty    = "hmi.graphicalContext";
 const char* const kGctxFile        = "/dev/shmem/nbt-aad-gctx";
 // DSC / DTC button: "same as sport mode" - CDS driving.DSCActive flips when the button changes the stability
@@ -923,6 +932,7 @@ time_t g_startTime = 0;
 char g_prevState[24] = "idle";
 // Stop / restart in progress.
 pid_t g_stopPid = 0;
+time_t g_lastUpdate = 0;   // "Update from USB" row: last time the update tool was started (press throttle)
 time_t g_stopTime = 0;
 int g_stopStage = 0;           // 0 quit sent, 1 SIGTERM sent, 2 SIGKILL sent
 bool g_restartAfterStop = false;
@@ -2080,6 +2090,50 @@ bool onRestartRow(void*, const bmw::Parcel&) {
     return true;
 }
 
+// "Update from USB" row: starts the update tool in the background with --no-reboot so the menu keeps showing
+// the driver what is happening (the tool's progress line lands in /dev/shmem/update-aa-status and the full log
+// in /opt/aa/update-aa.log; the driver reboots the head unit himself after the row says "done"). The tool finds
+// the release files on a mounted stick on its own.
+bool onUpdateRow(void*, const bmw::Parcel&) {
+    alog("menu: Update from USB (raAction %u)", kActUpdate);
+    if (g_stopPid) { alog("update ignored: a stop/restart is in progress"); return true; }
+    if (access(kUpdateTool, X_OK) != 0) {
+        alog("update ignored: %s is not there (the update tool was not installed with this release)", kUpdateTool);
+        return true;
+    }
+    unlink(kUpdateStatus);   // a finished update from before would read as "done"
+    time_t now = time(NULL);
+    if (g_lastUpdate && now - g_lastUpdate < 3) { alog("update ignored (pressed again within 3 s)"); return true; }
+    g_lastUpdate = now;
+    char* argv[] = { const_cast<char*>(kUpdateTool), const_cast<char*>("--no-reboot"), 0 };
+    int nul = open("/dev/null", O_RDONLY);
+    int out = open(kUpdateLog, O_WRONLY | O_CREAT | O_APPEND, 0666);
+    if (out < 0) out = nul;
+#ifdef __QNX__
+    int fdmap[3] = { nul, out, out };
+    struct inheritance inh;
+    memset(&inh, 0, sizeof(inh));
+    inh.flags = SPAWN_SETGROUP | SPAWN_SETSIGDEF | SPAWN_SETSIGMASK | SPAWN_NOZOMBIE;
+    inh.pgroup = SPAWN_NEWPGROUP;
+    sigfillset(&inh.sigdefault);
+    sigemptyset(&inh.sigmask);
+    pid_t pid = spawn(kUpdateTool, 3, fdmap, &inh, argv, environ);
+#else
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_adddup2(&fa, nul, 0);
+    posix_spawn_file_actions_adddup2(&fa, out, 1);
+    posix_spawn_file_actions_adddup2(&fa, out, 2);
+    pid_t pid = -1;
+    if (posix_spawn(&pid, kUpdateTool, &fa, NULL, argv, environ) != 0) pid = -1;
+#endif
+    close(nul);
+    if (out != nul) close(out);
+    if (pid < 0) alog("update: could not start %s (errno %d)", kUpdateTool, errno);
+    else alog("update: started %s --no-reboot pid %d (progress: %s, log: %s)", kUpdateTool, (int)pid, kUpdateStatus, kUpdateLog);
+    return true;
+}
+
 bool onMenuFocus(void*, const bmw::Parcel& p) {
     bool f = false;
     p.readBool(f);
@@ -2167,6 +2221,7 @@ bool appOnInit(bmw::PluginApp* self) {
     addAction(self, kActUsbAa, &onUsbAaToggle);
     addAction(self, kActPhoneGps, &onPhoneGpsToggle);
     addAction(self, kActWfdOnly, &onWfdOnlyToggle);
+    addAction(self, kActUpdate, &onUpdateRow);
     g_initTime = time(NULL);
     {
         bmw::ActionDelegate d;

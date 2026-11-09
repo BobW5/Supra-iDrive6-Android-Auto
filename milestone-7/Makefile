@@ -74,7 +74,7 @@ TARGET = nbt-aad
 check:
 	$(MAKE) -C tests check
 
-all: $(TARGET) test_display test_controls plugin rhmiapp wfd_probe pf_aa
+all: $(TARGET) test_display test_controls plugin rhmiapp wfd_probe pf_aa update_aa
 
 $(TARGET): $(OBJS)
 	@echo [LINK] $@
@@ -150,7 +150,14 @@ pf_aa: tools/pf_aa.cpp tools/pf_aa.hpp
 	$(CXX) $(CXXFLAGS) -o $@ tools/pf_aa.cpp -lang-c++
 	@echo [DONE] Built $@
 
-# Standalone volume-key capture/prompter: prints "press volume up 5x", waits, prints "press volume down 5x", waits, while
+# update_aa: whole-manual-update (updating.md steps 2-6) on the head unit - stop nbt-aad, swap the daemon + plugin,
+# run pf_aa --install --check, reboot. Run from the flash drive: update_aa /mnt/umassXXXXX.
+update_aa: tools/update_aa.cpp
+	@echo [CXX] tools/update_aa.cpp
+	$(CXX) $(CXXFLAGS) -o $@ tools/update_aa.cpp -lang-c++
+	@echo [DONE] Built $@
+
+# Standalone volume-key capture/prompter: prints "press volume up 5x", waits, prints "volume down 5x", waits, while
 # logging every MOST control message it can see to stdout and /mnt/umass01200t7/volcap.log. No daemon, no env needed.
 volcap: tools/volcap.cpp src/dsi_client.cpp src/dsi_client.hpp src/most/ids.hpp src/most/msg.hpp
 	@echo [CXX] tools/volcap.cpp
@@ -159,7 +166,7 @@ volcap: tools/volcap.cpp src/dsi_client.cpp src/dsi_client.hpp src/most/ids.hpp 
 
 clean:
 	@echo [CLEAN] Removing object files and binaries
-	rm -f $(OBJS) $(OBJS:.o=.d) $(TARGET) test_display test_controls plugin/libhmiaad.so plugin/plugin_check wfd_probe pf_aa
+	rm -f $(OBJS) $(OBJS:.o=.d) $(TARGET) test_display test_controls plugin/libhmiaad.so plugin/plugin_check wfd_probe pf_aa update_aa
 
 # osdprobe: standalone check that this unit lets us own an LM surface for our own window.
 osdprobe: tools/osdprobe.cpp
